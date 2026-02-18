@@ -1,29 +1,26 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from app.auth import authenticate_user, create_access_token, get_current_user
+from app.auth import (
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+    require_role
+)
 import os
 
 app = FastAPI(title="FinSight Backend")
 
-# -----------------------------
 # Root Endpoint
-# -----------------------------
 @app.get("/")
 def root():
     return {"message": "FinSight Backend Running"}
 
-
-# -----------------------------
-# Health Check Endpoint
-# -----------------------------
+# Health Check
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
-
-# -----------------------------
-# Login Endpoint (JWT)
-# -----------------------------
+# Login Endpoint
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
@@ -44,10 +41,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         "token_type": "bearer"
     }
 
-
-# -----------------------------
-# Protected Endpoint
-# -----------------------------
+# Basic Protected Route
 @app.get("/protected")
 def protected_route(current_user: dict = Depends(get_current_user)):
     return {
@@ -56,10 +50,24 @@ def protected_route(current_user: dict = Depends(get_current_user)):
         "role": current_user["role"]
     }
 
+# Role-Based Routes
+@app.get("/finance/data")
+def finance_data(current_user: dict = Depends(require_role("finance"))):
+    return {"message": "Finance data accessed", "user": current_user["username"]}
 
-# -----------------------------
-# Run Server (Render Compatible)
-# -----------------------------
+@app.get("/hr/data")
+def hr_data(current_user: dict = Depends(require_role("hr"))):
+    return {"message": "HR data accessed", "user": current_user["username"]}
+
+@app.get("/executive/data")
+def executive_data(current_user: dict = Depends(require_role("executive"))):
+    return {"message": "Executive data accessed", "user": current_user["username"]}
+
+@app.get("/admin/data")
+def admin_data(current_user: dict = Depends(require_role("admin"))):
+    return {"message": "Admin data accessed", "user": current_user["username"]}
+
+# Render Compatible Server Start
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

@@ -10,8 +10,8 @@ import os
 # ==============================
 
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 pwd_context = CryptContext(
     schemes=["pbkdf2_sha256"],  # ✅ NO BCRYPT
@@ -24,11 +24,29 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # FAKE USER DATABASE
 # ==============================
 
+# 🔥 Replace this hash with your generated pbkdf2 hash
+SAMPLE_HASH = "$pbkdf2-sha256$29000$xziHECIkJIRQKiXEuLcWAg$eBS2OleCmuMl7VWoQ6TTv7k6JrWGCGiwxJLKsl6DIxc"
+
 fake_users_db = {
     "admin": {
         "username": "admin",
-        "hashed_password": "$pbkdf2-sha256$29000$xziHECIkJIRQKiXEuLcWAg$eBS2OleCmuMl7VWoQ6TTv7k6JrWGCGiwxJLKsl6DIxc",  # 👈 Replace this
+        "hashed_password": SAMPLE_HASH,
         "role": "admin"
+    },
+    "finance_user": {
+        "username": "finance_user",
+        "hashed_password": SAMPLE_HASH,
+        "role": "finance"
+    },
+    "hr_user": {
+        "username": "hr_user",
+        "hashed_password": SAMPLE_HASH,
+        "role": "hr"
+    },
+    "executive_user": {
+        "username": "executive_user",
+        "hashed_password": SAMPLE_HASH,
+        "role": "executive"
     }
 }
 
@@ -36,7 +54,7 @@ fake_users_db = {
 # PASSWORD FUNCTIONS
 # ==============================
 
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
 def authenticate_user(username: str, password: str):
@@ -76,3 +94,17 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
+
+# ==============================
+# ROLE-BASED ACCESS CONTROL
+# ==============================
+
+def require_role(required_role: str):
+    def role_checker(current_user: dict = Depends(get_current_user)):
+        if current_user["role"] != required_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: insufficient role privileges"
+            )
+        return current_user
+    return role_checker
