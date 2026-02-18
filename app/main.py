@@ -67,10 +67,27 @@ def executive_data(current_user: dict = Depends(require_role("executive"))):
 @app.get("/admin/data")
 def admin_data(current_user: dict = Depends(require_role("admin"))):
     return {"message": "Admin data accessed", "user": current_user["username"]}
-@app.get("/test-sql")
-def test_sql():
-    result = run_sql("SELECT * FROM department_data")
-    return {"data": result}
+@app.get("/secure-sql")
+def secure_sql(current_user: dict = Depends(get_current_user)):
+
+    role = current_user["role"]
+
+    if role == "admin":
+        query = "SELECT * FROM department_data"
+    else:
+        query = f"""
+            SELECT * FROM department_data
+            WHERE department = '{role}'
+        """
+
+    result = run_sql(query)
+
+    return {
+        "user": current_user["username"],
+        "role": role,
+        "data": result
+    }
+
 
 
 # Render Compatible Server Start
