@@ -1,3 +1,4 @@
+from app.database import run_sql
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from app.auth import (
@@ -66,6 +67,11 @@ def executive_data(current_user: dict = Depends(require_role("executive"))):
 @app.get("/admin/data")
 def admin_data(current_user: dict = Depends(require_role("admin"))):
     return {"message": "Admin data accessed", "user": current_user["username"]}
+@app.get("/test-sql")
+def test_sql():
+    result = run_sql("SELECT * FROM department_data")
+    return {"data": result}
+
 
 # Render Compatible Server Start
 if __name__ == "__main__":
@@ -75,3 +81,10 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 10000))
     )
+from app.database import run_sql
+
+@app.get("/test-sql")
+def test_sql():
+    result = run_sql("SELECT * FROM department_data")
+    return {"data": result}
+
