@@ -5,3 +5,10 @@ python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
+duckdb
+chromadb
+langchain
+langchain-community
+langchain-openai
+sentence-transformers
+
