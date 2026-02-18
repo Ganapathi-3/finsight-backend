@@ -12,7 +12,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 fake_users_db = {
     "admin": {
         "username": "admin",
-        "hashed_password": pwd_context.hash("admin123"),
+        "hashed_password": "$2b$12$wJkF9q8Lm8uJdYx6P2z9bOeKQ3zYp9T8mJHkF8sYpQ7tLmZxR1uC2",
         "role": "admin"
     }
 }
