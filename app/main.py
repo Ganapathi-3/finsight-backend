@@ -1,3 +1,4 @@
+from app.rag.rag_chain import get_rag_response
 from app.database import run_sql
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -87,6 +88,18 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
         "role": role,
         "data": result
     }
+@app.post("/ask")
+def ask_ai(query: str, current_user: dict = Depends(get_current_user)):
+
+    role = current_user["role"]
+
+    response = get_rag_response(role, query)
+
+    return {
+        "role": role,
+        "answer": response
+    }
+
 
 
 
