@@ -15,6 +15,14 @@ app = FastAPI(title="FinSight Backend")
 
 
 # -------------------------
+# Startup (Seed Documents Safely)
+# -------------------------
+@app.on_event("startup")
+def load_documents():
+    seed_documents()
+
+
+# -------------------------
 # Root
 # -------------------------
 @app.get("/")
@@ -113,7 +121,7 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
 
 
 # -------------------------
-# AI Ask Endpoint (FINAL)
+# AI Ask Endpoint
 # -------------------------
 @app.post("/ask")
 def ask_ai(
@@ -141,7 +149,6 @@ def ask_ai(
 
 # -------------------------
 # Development Only Endpoint
-# (REMOVE LATER)
 # -------------------------
 @app.get("/test-sql")
 def test_sql():
@@ -159,6 +166,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 10000))
     )
-@app.on_event("startup")
-def load_documents():
-    seed_documents()
