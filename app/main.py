@@ -17,11 +17,6 @@ app = FastAPI(title="FinSight Backend")
 # -------------------------
 # Startup (Seed Documents Safely)
 # -------------------------
-@app.on_event("startup")
-def load_documents():
-    seed_documents()
-
-
 # -------------------------
 # Root
 # -------------------------
