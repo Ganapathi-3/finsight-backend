@@ -1,6 +1,4 @@
-from app.rag.rag_chain import get_rag_response
-from app.database import run_sql
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from app.auth import (
     authenticate_user,
@@ -8,21 +6,32 @@ from app.auth import (
     get_current_user,
     require_role
 )
+from app.database import run_sql
+from app.rag.rag_chain import get_rag_response
 import os
 
 app = FastAPI(title="FinSight Backend")
 
-# Root Endpoint
+
+# -------------------------
+# Root
+# -------------------------
 @app.get("/")
 def root():
     return {"message": "FinSight Backend Running"}
 
-# Health Check
+
+# -------------------------
+# Health
+# -------------------------
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
-# Login Endpoint
+
+# -------------------------
+# Login
+# -------------------------
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
@@ -43,7 +52,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         "token_type": "bearer"
     }
 
+
+# -------------------------
 # Basic Protected Route
+# -------------------------
 @app.get("/protected")
 def protected_route(current_user: dict = Depends(get_current_user)):
     return {
@@ -52,58 +64,93 @@ def protected_route(current_user: dict = Depends(get_current_user)):
         "role": current_user["role"]
     }
 
+
+# -------------------------
 # Role-Based Routes
+# -------------------------
 @app.get("/finance/data")
 def finance_data(current_user: dict = Depends(require_role("finance"))):
     return {"message": "Finance data accessed", "user": current_user["username"]}
+
 
 @app.get("/hr/data")
 def hr_data(current_user: dict = Depends(require_role("hr"))):
     return {"message": "HR data accessed", "user": current_user["username"]}
 
+
 @app.get("/executive/data")
 def executive_data(current_user: dict = Depends(require_role("executive"))):
     return {"message": "Executive data accessed", "user": current_user["username"]}
 
+
 @app.get("/admin/data")
 def admin_data(current_user: dict = Depends(require_role("admin"))):
     return {"message": "Admin data accessed", "user": current_user["username"]}
+
+
+# -------------------------
+# Secure SQL (Role Filtered)
+# -------------------------
 @app.get("/secure-sql")
 def secure_sql(current_user: dict = Depends(get_current_user)):
 
     role = current_user["role"]
 
     if role == "admin":
-        query = "SELECT * FROM department_data"
+        result = run_sql("SELECT * FROM department_data")
     else:
-        query = f"""
-            SELECT * FROM department_data
-            WHERE department = '{role}'
-        """
-
-    result = run_sql(query)
+        result = run_sql(
+            "SELECT * FROM department_data WHERE department = ?",
+            (role,)
+        )
 
     return {
         "user": current_user["username"],
         "role": role,
         "data": result
     }
+
+
+# -------------------------
+# AI Ask Endpoint (FINAL)
+# -------------------------
 @app.post("/ask")
-def ask_ai(query: str, current_user: dict = Depends(get_current_user)):
+def ask_ai(
+    request: dict = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
 
     role = current_user["role"]
+    question = request.get("question")
 
-    response = get_rag_response(role, query)
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail="Question field is required"
+        )
+
+    response = get_rag_response(role, question)
 
     return {
         "role": role,
+        "question": question,
         "answer": response
     }
 
 
+# -------------------------
+# Development Only Endpoint
+# (REMOVE LATER)
+# -------------------------
+@app.get("/test-sql")
+def test_sql():
+    result = run_sql("SELECT * FROM department_data")
+    return {"data": result}
 
 
+# -------------------------
 # Render Compatible Server Start
+# -------------------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
@@ -111,10 +158,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 10000))
     )
-from app.database import run_sql
-
-@app.get("/test-sql")
-def test_sql():
-    result = run_sql("SELECT * FROM department_data")
-    return {"data": result}
-
