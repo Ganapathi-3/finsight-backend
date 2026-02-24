@@ -1,3 +1,4 @@
+from app.rag.document import seed_documents
 from fastapi import FastAPI, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from app.auth import (
@@ -158,3 +159,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 10000))
     )
+@app.on_event("startup")
+def load_documents():
+    seed_documents()
