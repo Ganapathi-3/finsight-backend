@@ -1,14 +1,12 @@
+fastapi==0.110.0
+uvicorn==0.29.0
+python-jose==3.3.0
+passlib==1.7.4
+python-multipart==0.0.9
+duckdb==0.10.1
 
-fastapi
-uvicorn
-python-dotenv
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
-duckdb
-chromadb
-langchain
-langchain-community
-langchain-openai
-sentence-transformers
-
+langchain==0.1.16
+langchain-community==0.0.32
+langchain-openai==0.1.3
+chromadb==0.4.24
+sentence-transformers==2.7.0
