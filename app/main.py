@@ -161,3 +161,40 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 10000))
     )
+from app.rag.vector_store import add_documents
+
+# -------------------------
+# Admin Add Documents (Production)
+# -------------------------
+@app.post("/admin/add-documents")
+def add_department_documents(
+    request: dict = Body(...),
+    current_user: dict = Depends(require_role("admin"))
+):
+    department = request.get("department")
+    texts = request.get("texts")
+
+    if not department or not texts:
+        raise HTTPException(
+            status_code=400,
+            detail="Both 'department' and 'texts' fields are required"
+        )
+
+    if department not in ["finance", "hr", "executive", "admin"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid department"
+        )
+
+    if not isinstance(texts, list):
+        raise HTTPException(
+            status_code=400,
+            detail="'texts' must be a list of strings"
+        )
+
+    add_documents(department, texts)
+
+    return {
+        "message": f"Documents added successfully to {department}",
+        "count": len(texts)
+    }
