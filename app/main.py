@@ -1,4 +1,3 @@
-from app.rag.document import seed_documents
 from fastapi import FastAPI, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from app.auth import (
@@ -9,33 +8,30 @@ from app.auth import (
 )
 from app.database import run_sql
 from app.rag.rag_chain import get_rag_response
+from app.rag.vector_store import add_documents
 import os
 
 app = FastAPI(title="FinSight Backend")
 
 
-# -------------------------
-# Startup (Seed Documents Safely)
-# -------------------------
-# -------------------------
-# Root
-# -------------------------
+# =========================================================
+# ROOT & HEALTH
+# =========================================================
+
 @app.get("/")
 def root():
     return {"message": "FinSight Backend Running"}
 
 
-# -------------------------
-# Health
-# -------------------------
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
 
-# -------------------------
-# Login
-# -------------------------
+# =========================================================
+# AUTHENTICATION
+# =========================================================
+
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
@@ -57,9 +53,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     }
 
 
-# -------------------------
-# Basic Protected Route
-# -------------------------
 @app.get("/protected")
 def protected_route(current_user: dict = Depends(get_current_user)):
     return {
@@ -69,9 +62,10 @@ def protected_route(current_user: dict = Depends(get_current_user)):
     }
 
 
-# -------------------------
-# Role-Based Routes
-# -------------------------
+# =========================================================
+# ROLE-BASED ROUTES
+# =========================================================
+
 @app.get("/finance/data")
 def finance_data(current_user: dict = Depends(require_role("finance"))):
     return {"message": "Finance data accessed", "user": current_user["username"]}
@@ -92,9 +86,10 @@ def admin_data(current_user: dict = Depends(require_role("admin"))):
     return {"message": "Admin data accessed", "user": current_user["username"]}
 
 
-# -------------------------
-# Secure SQL (Role Filtered)
-# -------------------------
+# =========================================================
+# SECURE SQL (Role Filtered)
+# =========================================================
+
 @app.get("/secure-sql")
 def secure_sql(current_user: dict = Depends(get_current_user)):
 
@@ -115,15 +110,15 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
     }
 
 
-# -------------------------
-# AI Ask Endpoint
-# -------------------------
+# =========================================================
+# AI ASK ENDPOINT (RAG)
+# =========================================================
+
 @app.post("/ask")
 def ask_ai(
     request: dict = Body(...),
     current_user: dict = Depends(get_current_user)
 ):
-
     role = current_user["role"]
     question = request.get("question")
 
@@ -142,30 +137,10 @@ def ask_ai(
     }
 
 
-# -------------------------
-# Development Only Endpoint
-# -------------------------
-@app.get("/test-sql")
-def test_sql():
-    result = run_sql("SELECT * FROM department_data")
-    return {"data": result}
+# =========================================================
+# ADMIN: ADD DOCUMENTS TO VECTOR DB
+# =========================================================
 
-
-# -------------------------
-# Render Compatible Server Start
-# -------------------------
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000))
-    )
-from app.rag.vector_store import add_documents
-
-# -------------------------
-# Admin Add Documents (Production)
-# -------------------------
 @app.post("/admin/add-documents")
 def add_department_documents(
     request: dict = Body(...),
@@ -198,3 +173,26 @@ def add_department_documents(
         "message": f"Documents added successfully to {department}",
         "count": len(texts)
     }
+
+
+# =========================================================
+# DEVELOPMENT ONLY
+# =========================================================
+
+@app.get("/test-sql")
+def test_sql():
+    result = run_sql("SELECT * FROM department_data")
+    return {"data": result}
+
+
+# =========================================================
+# RENDER SERVER START
+# =========================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 10000))
+    )
