@@ -1,24 +1,35 @@
-from langchain_community.vectorstores import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.schema import Document
-import os
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-persist_directory = "chroma_db"
-
-# ✅ Load embedding model ONLY ONCE
-embedding_model = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
-
-def get_vector_store(role: str):
-    return Chroma(
-        persist_directory=f"{persist_directory}/{role}",
-        embedding_function=embedding_model
-    )
+# In-memory store
+documents_store = {
+    "finance": [],
+    "hr": [],
+    "executive": [],
+    "admin": []
+}
 
 def add_documents(role: str, texts: list):
-    vectorstore = get_vector_store(role)
+    if role not in documents_store:
+        raise ValueError("Invalid role")
 
-    docs = [Document(page_content=text) for text in texts]
-    vectorstore.add_documents(docs)
-    vectorstore.persist()
+    documents_store[role].extend(texts)
+
+
+def search_documents(role: str, query: str):
+    docs = documents_store.get(role, [])
+
+    if not docs:
+        return "No documents found for this department."
+
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(docs + [query])
+
+    similarity = cosine_similarity(
+        tfidf_matrix[-1],
+        tfidf_matrix[:-1]
+    )
+
+    best_index = similarity.argmax()
+
+    return docs[best_index]
