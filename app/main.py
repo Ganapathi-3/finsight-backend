@@ -1,46 +1,57 @@
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Later restrict to frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 from fastapi import FastAPI, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
 from app.auth import (
     authenticate_user,
     create_access_token,
     get_current_user,
     require_role
 )
+
 from app.database import run_sql
 from app.rag.rag_chain import get_rag_response
 from app.rag.vector_store import add_documents
-import os
 
+
+# ==============================
+# Create FastAPI app FIRST
+# ==============================
 app = FastAPI(title="FinSight Backend")
 
 
-# =========================================================
-# ROOT & HEALTH
-# =========================================================
+# ==============================
+# CORS (for React frontend)
+# ==============================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # change later to frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+
+# ==============================
+# Root
+# ==============================
 @app.get("/")
 def root():
     return {"message": "FinSight Backend Running"}
 
 
+# ==============================
+# Health
+# ==============================
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
 
-# =========================================================
-# AUTHENTICATION
-# =========================================================
-
+# ==============================
+# Login
+# ==============================
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
@@ -62,6 +73,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     }
 
 
+# ==============================
+# Protected Route
+# ==============================
 @app.get("/protected")
 def protected_route(current_user: dict = Depends(get_current_user)):
     return {
@@ -71,34 +85,32 @@ def protected_route(current_user: dict = Depends(get_current_user)):
     }
 
 
-# =========================================================
-# ROLE-BASED ROUTES
-# =========================================================
-
+# ==============================
+# Role-Based Routes
+# ==============================
 @app.get("/finance/data")
 def finance_data(current_user: dict = Depends(require_role("finance"))):
-    return {"message": "Finance data accessed", "user": current_user["username"]}
+    return {"message": "Finance data accessed"}
 
 
 @app.get("/hr/data")
 def hr_data(current_user: dict = Depends(require_role("hr"))):
-    return {"message": "HR data accessed", "user": current_user["username"]}
+    return {"message": "HR data accessed"}
 
 
 @app.get("/executive/data")
 def executive_data(current_user: dict = Depends(require_role("executive"))):
-    return {"message": "Executive data accessed", "user": current_user["username"]}
+    return {"message": "Executive data accessed"}
 
 
 @app.get("/admin/data")
 def admin_data(current_user: dict = Depends(require_role("admin"))):
-    return {"message": "Admin data accessed", "user": current_user["username"]}
+    return {"message": "Admin data accessed"}
 
 
-# =========================================================
-# SECURE SQL (Role Filtered)
-# =========================================================
-
+# ==============================
+# Secure SQL
+# ==============================
 @app.get("/secure-sql")
 def secure_sql(current_user: dict = Depends(get_current_user)):
 
@@ -119,15 +131,15 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
     }
 
 
-# =========================================================
-# AI ASK ENDPOINT (RAG)
-# =========================================================
-
+# ==============================
+# AI Ask Endpoint
+# ==============================
 @app.post("/ask")
 def ask_ai(
     request: dict = Body(...),
     current_user: dict = Depends(get_current_user)
 ):
+
     role = current_user["role"]
     question = request.get("question")
 
@@ -146,10 +158,9 @@ def ask_ai(
     }
 
 
-# =========================================================
-# ADMIN: ADD DOCUMENTS TO VECTOR DB
-# =========================================================
-
+# ==============================
+# Admin Add Documents
+# ==============================
 @app.post("/admin/add-documents")
 def add_department_documents(
     request: dict = Body(...),
@@ -184,20 +195,18 @@ def add_department_documents(
     }
 
 
-# =========================================================
-# DEVELOPMENT ONLY
-# =========================================================
-
+# ==============================
+# Dev SQL test
+# ==============================
 @app.get("/test-sql")
 def test_sql():
     result = run_sql("SELECT * FROM department_data")
     return {"data": result}
 
 
-# =========================================================
-# RENDER SERVER START
-# =========================================================
-
+# ==============================
+# Render entry point
+# ==============================
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
