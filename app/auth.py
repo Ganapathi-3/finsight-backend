@@ -30,26 +30,25 @@ SAMPLE_HASH = "$pbkdf2-sha256$29000$xziHECIkJIRQKiXEuLcWAg$eBS2OleCmuMl7VWoQ6TTv
 fake_users_db = {
     "admin": {
         "username": "admin",
-        "hashed_password": SAMPLE_HASH,
+        "hashed_password": "$pbkdf2-sha256$29000$.x8jJISwFkJIKcXYm7M25g$NwmqGIZvp7Cvk9uIS2s03LImam3iqA7UCjFaVSiDSOE",
         "role": "admin"
     },
-    "finance_user": {
-        "username": "finance_user",
-        "hashed_password": SAMPLE_HASH,
+    "finance": {
+        "username": "finance",
+        "hashed_password": "$pbkdf2-sha256$29000$NUboHcP4f6.V8r5XSumdEw$eEepRuRiNjEX4QxRacFl/RPKRAnEjsrD3e0MNdaQJaI",
         "role": "finance"
     },
-    "hr_user": {
-        "username": "hr_user",
-        "hashed_password": SAMPLE_HASH,
+    "hr": {
+        "username": "hr",
+        "hashed_password": "$pbkdf2-sha256$29000$JIRQCgGAUKq11ro3xpgTQg$OKXO/cHz1oC0V0JSrSySIQEC4PogsNwd1B.p30tLfTc",
         "role": "hr"
     },
-    "executive_user": {
-        "username": "executive_user",
-        "hashed_password": SAMPLE_HASH,
+    "executive": {
+        "username": "executive",
+        "hashed_password": "$pbkdf2-sha256$29000$IgRAKGUMYYyxVkppzVnLeQ$0itQISXmU7.yGR5/jNn3HseUNxFRoMrE8S989UQcqeI",
         "role": "executive"
     }
 }
-
 # ==============================
 # PASSWORD FUNCTIONS
 # ==============================
