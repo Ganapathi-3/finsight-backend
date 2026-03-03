@@ -1,6 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Body
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+from typing import List
+from pydantic import BaseModel
 import os
 
 from app.auth import (
@@ -9,49 +11,53 @@ from app.auth import (
     get_current_user,
     require_role
 )
-
 from app.database import run_sql
 from app.rag.rag_chain import get_rag_response
 from app.rag.vector_store import add_documents
 
 
-# ==============================
-# Create FastAPI app FIRST
-# ==============================
+# ==========================================================
+# APP INITIALIZATION
+# ==========================================================
+
 app = FastAPI(title="FinSight Backend")
 
 
-# ==============================
-# CORS (for React frontend)
-# ==============================
+# ==========================================================
+# CORS (Allow Frontend Access)
+# ==========================================================
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # change later to frontend URL
+    allow_origins=["*"],  # Change to frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ==============================
-# Root
-# ==============================
+# ==========================================================
+# ROOT
+# ==========================================================
+
 @app.get("/")
 def root():
     return {"message": "FinSight Backend Running"}
 
 
-# ==============================
-# Health
-# ==============================
+# ==========================================================
+# HEALTH CHECK
+# ==========================================================
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
 
-# ==============================
-# Login
-# ==============================
+# ==========================================================
+# LOGIN
+# ==========================================================
+
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
@@ -73,9 +79,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     }
 
 
-# ==============================
-# Protected Route
-# ==============================
+# ==========================================================
+# PROTECTED ROUTE
+# ==========================================================
+
 @app.get("/protected")
 def protected_route(current_user: dict = Depends(get_current_user)):
     return {
@@ -85,9 +92,10 @@ def protected_route(current_user: dict = Depends(get_current_user)):
     }
 
 
-# ==============================
-# Role-Based Routes
-# ==============================
+# ==========================================================
+# ROLE-BASED ROUTES
+# ==========================================================
+
 @app.get("/finance/data")
 def finance_data(current_user: dict = Depends(require_role("finance"))):
     return {"message": "Finance data accessed"}
@@ -108,9 +116,10 @@ def admin_data(current_user: dict = Depends(require_role("admin"))):
     return {"message": "Admin data accessed"}
 
 
-# ==============================
-# Secure SQL
-# ==============================
+# ==========================================================
+# SECURE SQL (ROLE FILTERED)
+# ==========================================================
+
 @app.get("/secure-sql")
 def secure_sql(current_user: dict = Depends(get_current_user)):
 
@@ -131,16 +140,16 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
     }
 
 
-# ==============================
-# AI Ask Endpoint
-# ==============================
+# ==========================================================
+# AI ASK ENDPOINT (RAG)
+# ==========================================================
+
 @app.post("/ask")
 def ask_ai(
-    request: dict = Body(...),
+    request: dict,
     current_user: dict = Depends(get_current_user)
 ):
 
-    role = current_user["role"]
     question = request.get("question")
 
     if not question:
@@ -148,6 +157,8 @@ def ask_ai(
             status_code=400,
             detail="Question field is required"
         )
+
+    role = current_user["role"]
 
     response = get_rag_response(role, question)
 
@@ -158,59 +169,68 @@ def ask_ai(
     }
 
 
-# ==============================
-# Admin Add Documents
-# ==============================
+# ==========================================================
+# MULTI-DEPARTMENT DOCUMENT UPLOAD
+# ==========================================================
+
+class DepartmentDocuments(BaseModel):
+    department: str
+    texts: List[str]
+
+
 @app.post("/admin/add-documents")
-def add_department_documents(
-    request: dict = Body(...),
+def add_multiple_department_documents(
+    request: List[DepartmentDocuments],
     current_user: dict = Depends(require_role("admin"))
 ):
-    department = request.get("department")
-    texts = request.get("texts")
 
-    if not department or not texts:
-        raise HTTPException(
-            status_code=400,
-            detail="Both 'department' and 'texts' fields are required"
-        )
+    allowed_departments = ["finance", "hr", "executive", "admin"]
 
-    if department not in ["finance", "hr", "executive", "admin"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid department"
-        )
+    total_added = 0
 
-    if not isinstance(texts, list):
-        raise HTTPException(
-            status_code=400,
-            detail="'texts' must be a list of strings"
-        )
+    for item in request:
 
-    add_documents(department, texts)
+        if item.department not in allowed_departments:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid department: {item.department}"
+            )
+
+        if not item.texts or not isinstance(item.texts, list):
+            raise HTTPException(
+                status_code=400,
+                detail=f"'texts' must be a list for department {item.department}"
+            )
+
+        add_documents(item.department, item.texts)
+        total_added += len(item.texts)
 
     return {
-        "message": f"Documents added successfully to {department}",
-        "count": len(texts)
+        "message": "Documents added successfully",
+        "departments_processed": len(request),
+        "total_documents_added": total_added
     }
 
 
-# ==============================
-# Dev SQL test
-# ==============================
+# ==========================================================
+# DEVELOPMENT TEST SQL
+# ==========================================================
+
 @app.get("/test-sql")
 def test_sql():
     result = run_sql("SELECT * FROM department_data")
     return {"data": result}
 
 
-# ==============================
-# Render entry point
-# ==============================
+# ==========================================================
+# RUN SERVER (LOCAL)
+# ==========================================================
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000))
+        port=int(os.environ.get("PORT", 8000)),
+        reload=True
     )
