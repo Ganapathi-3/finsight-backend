@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 from pydantic import BaseModel
-import numpy as np
 import os
 
 from app.auth import (
@@ -15,7 +14,7 @@ from app.auth import (
 
 from app.database import run_sql
 from app.rag.rag_chain import get_rag_response
-from app.rag.vector_store import add_documents, embedding_model
+from app.rag.vector_store import add_documents
 
 
 # ==========================================================
@@ -36,41 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ==========================================================
-# SEMANTIC DEPARTMENT DETECTION
-# ==========================================================
-
-department_descriptions = {
-    "finance": "finance budgeting revenue profit accounting financial reports",
-    "hr": "human resources hiring recruitment payroll employees benefits training",
-    "executive": "company leadership strategy board decisions management planning",
-    "admin": "system administration backend infrastructure configuration management"
-}
-
-dept_embeddings = {
-    dept: embedding_model.embed_query(text)
-    for dept, text in department_descriptions.items()
-}
-
-
-def detect_department(question: str):
-
-    q_embedding = embedding_model.embed_query(question)
-
-    best_dept = None
-    best_score = -1
-
-    for dept, emb in dept_embeddings.items():
-
-        score = np.dot(q_embedding, emb)
-
-        if score > best_score:
-            best_score = score
-            best_dept = dept
-
-    return best_dept
 
 
 # ==========================================================
@@ -131,7 +95,7 @@ def protected_route(current_user: dict = Depends(get_current_user)):
 
 
 # ==========================================================
-# ROLE-BASED ROUTES
+# ROLE BASED ROUTES
 # ==========================================================
 
 @app.get("/finance/data")
@@ -165,7 +129,6 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
 
     if role == "admin":
         result = run_sql("SELECT * FROM department_data")
-
     else:
         result = run_sql(
             "SELECT * FROM department_data WHERE department = ?",
@@ -180,7 +143,7 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
 
 
 # ==========================================================
-# AI ASK ENDPOINT (SEMANTIC + RBAC)
+# AI ASK ENDPOINT (RAG + ROLE SECURITY)
 # ==========================================================
 
 @app.post("/ask")
@@ -199,25 +162,30 @@ def ask_ai(
 
     role = current_user["role"]
 
-    # detect department using embeddings
-    detected_department = detect_department(question)
+    question_lower = question.lower()
 
-    # role restriction
-    if role != "admin" and detected_department != role:
+    # Detect department mentioned in question
+    departments = ["finance", "hr", "executive", "admin"]
 
+    detected_department = None
+
+    for dept in departments:
+        if dept in question_lower:
+            detected_department = dept
+            break
+
+    # Block cross-department access
+    if detected_department and role != "admin" and detected_department != role:
         raise HTTPException(
             status_code=403,
             detail=f"Access denied: {role} users cannot query {detected_department} data."
         )
 
-    # admin can query any department
-    target_department = role if role != "admin" else detected_department
-
-    response = get_rag_response(target_department, question)
+    # Run RAG retrieval for user's department
+    response = get_rag_response(role, question)
 
     return {
         "role": role,
-        "detected_department": detected_department,
         "question": question,
         "answer": response
     }
@@ -257,6 +225,7 @@ def add_multiple_department_documents(
             )
 
         add_documents(item.department, item.texts)
+
         total_added += len(item.texts)
 
     return {
