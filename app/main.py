@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 from pydantic import BaseModel
+import numpy as np
 import os
 
 from app.auth import (
@@ -11,9 +12,10 @@ from app.auth import (
     get_current_user,
     require_role
 )
+
 from app.database import run_sql
 from app.rag.rag_chain import get_rag_response
-from app.rag.vector_store import add_documents
+from app.rag.vector_store import add_documents, embedding_model
 
 
 # ==========================================================
@@ -29,11 +31,46 @@ app = FastAPI(title="FinSight Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to frontend URL in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ==========================================================
+# SEMANTIC DEPARTMENT DETECTION
+# ==========================================================
+
+department_descriptions = {
+    "finance": "finance budgeting revenue profit accounting financial reports",
+    "hr": "human resources hiring recruitment payroll employees benefits training",
+    "executive": "company leadership strategy board decisions management planning",
+    "admin": "system administration backend infrastructure configuration management"
+}
+
+dept_embeddings = {
+    dept: embedding_model.embed_query(text)
+    for dept, text in department_descriptions.items()
+}
+
+
+def detect_department(question: str):
+
+    q_embedding = embedding_model.embed_query(question)
+
+    best_dept = None
+    best_score = -1
+
+    for dept, emb in dept_embeddings.items():
+
+        score = np.dot(q_embedding, emb)
+
+        if score > best_score:
+            best_score = score
+            best_dept = dept
+
+    return best_dept
 
 
 # ==========================================================
@@ -60,6 +97,7 @@ def health():
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
+
     user = authenticate_user(form_data.username, form_data.password)
 
     if not user:
@@ -127,6 +165,7 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
 
     if role == "admin":
         result = run_sql("SELECT * FROM department_data")
+
     else:
         result = run_sql(
             "SELECT * FROM department_data WHERE department = ?",
@@ -141,7 +180,7 @@ def secure_sql(current_user: dict = Depends(get_current_user)):
 
 
 # ==========================================================
-# AI ASK ENDPOINT (RAG)
+# AI ASK ENDPOINT (SEMANTIC + RBAC)
 # ==========================================================
 
 @app.post("/ask")
@@ -160,10 +199,25 @@ def ask_ai(
 
     role = current_user["role"]
 
-    response = get_rag_response(role, question)
+    # detect department using embeddings
+    detected_department = detect_department(question)
+
+    # role restriction
+    if role != "admin" and detected_department != role:
+
+        raise HTTPException(
+            status_code=403,
+            detail=f"Access denied: {role} users cannot query {detected_department} data."
+        )
+
+    # admin can query any department
+    target_department = role if role != "admin" else detected_department
+
+    response = get_rag_response(target_department, question)
 
     return {
         "role": role,
+        "detected_department": detected_department,
         "question": question,
         "answer": response
     }
@@ -223,11 +277,12 @@ def test_sql():
 
 
 # ==========================================================
-# RUN SERVER (LOCAL)
+# RUN SERVER
 # ==========================================================
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
